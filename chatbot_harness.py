@@ -40,10 +40,9 @@ MBTI_RULES = {
 
 NOISE_INTERESTS = {"none", "humor", "sadness", "validation", "clarity", "crisis"}
 CASUAL_SLANG_PATTERN = re.compile(
-    r"\blol\b|\bbtw\b|\bhaha\b|\bgonna\b|\bcuh\b|\blmao\b|\bidk\b|\bwazzup\b|\bblud\b|\bfoo\b|\bfr fr\b",
-    re.UNICODE,
+    r"\blol\b|\bbtw\b|\bhaha\b|\bgonna\b|\bcuh\b|\blmao\b|\bidk\b|\bwazzup\b|\bblud\b|\bfoo\b|\bfr\s+fr\b"
 )
-EMOJI_PATTERN = re.compile(r"[\U00010000-\U0010ffff]", re.UNICODE)
+EMOJI_PATTERN = re.compile(r"[\U00010000-\U0010ffff]")
 
 
 # ==========================================
@@ -100,7 +99,7 @@ def check_server_status():
             f"COULD NOT CONNECT to LM Studio: {reason}.\nCheck if 'Start Server' has been clicked on port 1234 in LM Studio.",
         )
     except Exception as err:  # noqa: BLE001
-        return False, f"Unexpected connection error: {err}"
+        return False, f"Unexpected connection error while querying {MODELS_URL}: {err}"
 
 
 # ==========================================
@@ -143,8 +142,10 @@ class DynamicChatHarness:
                 return res_data["choices"][0]["message"]["content"].strip()
         except urllib.error.URLError as err:
             return f"\n[Error connecting to LM Studio at {API_URL}. Error: {err}]"
+        except KeyError as err:
+            return f"\n[Invalid response format from LM Studio (missing field {err})]"
         except Exception as err:  # noqa: BLE001
-            return f"\n[Unexpected error during call: {err}]"
+            return f"\n[Unexpected error during call to {API_URL}: {err}]"
         finally:
             spinner.stop()
 
@@ -153,10 +154,11 @@ class DynamicChatHarness:
         return user_messages[-count:]
 
     def update_heuristics(self, last_user_messages):
-        if not last_user_messages:
+        message_count = len(last_user_messages)
+        if message_count == 0:
             return
         recent_text = " ".join(message["content"] for message in last_user_messages)
-        avg_len = len(recent_text) / len(last_user_messages)
+        avg_len = len(recent_text) / message_count
         with self._state_lock:
             self.mbti_letters["len"] = "C" if avg_len < 60 else "V"
             self.mbti_letters["form"] = "I" if CASUAL_SLANG_PATTERN.search(recent_text.lower()) else "F"
@@ -231,7 +233,7 @@ class DynamicChatHarness:
             "- MATCH USER LENGTH: Keep your replies matching the user's length density naturally.",
             "Current style guidelines:",
         ]
-        for _, letter in mbti_letters.items():
+        for letter in mbti_letters.values():
             rule = MBTI_RULES.get(letter)
             if rule:
                 system_rules.append(f"- {rule}")
@@ -258,13 +260,17 @@ class DynamicChatHarness:
 
     def send_chat_message(self, user_text):
         self.conversation_history.append({"role": "user", "content": user_text})
-        self.user_message_counter += 1
-
         self.update_heuristics(self._latest_user_messages())
 
-        if self.user_message_counter >= 3:
+        should_profile = False
+        with self._state_lock:
+            self.user_message_counter += 1
+            if self.user_message_counter >= 3:
+                self.user_message_counter = 0
+                should_profile = True
+
+        if should_profile:
             self.trigger_profiler_background()
-            self.user_message_counter = 0
 
         system_prompt = self.assemble_system_prompt()
         response = self.make_api_call(system_prompt, self.conversation_history, loading_msg="Thinking...")
