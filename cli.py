@@ -1,3 +1,4 @@
+import json
 import sys
 import threading
 import time
@@ -34,9 +35,49 @@ class Spinner:
             self.thread.join()
 
 
+def print_help():
+    print("\nCommands:")
+    print("  /help          Show this command list")
+    print("  /profile       Show the current adaptation profile")
+    print("  /ads on        Enable sponsored suggestions")
+    print("  /ads off       Disable sponsored suggestions")
+    print("  /reset         Clear conversation and profile state")
+    print("  /exit          End the session\n")
+
+
+def handle_command(user_input, harness):
+    command = user_input.strip().lower()
+    if command in {"/help", "help"}:
+        print_help()
+        return True
+    if command in {"/exit", "/quit", "exit", "quit"}:
+        print("\nGoodbye!")
+        raise SystemExit(0)
+    if command == "/profile":
+        print("\nCurrent adaptation profile:")
+        print(json.dumps(harness.profile_snapshot(), indent=2))
+        return True
+    if command == "/ads on":
+        harness.set_sponsored_suggestions(True)
+        print("\nSponsored suggestions enabled.")
+        return True
+    if command == "/ads off":
+        harness.set_sponsored_suggestions(False)
+        print("\nSponsored suggestions disabled.")
+        return True
+    if command == "/reset":
+        harness.reset_session()
+        print("\nSession profile and conversation history reset.")
+        return True
+    if command.startswith("/"):
+        print("\nUnknown command. Type /help for available commands.")
+        return True
+    return False
+
+
 def run_cli():
     print("=" * 60)
-    print("      REAL-TIME PSYCHOMETRIC CHATBOT HARNESS      ")
+    print("      REAL-TIME ADAPTIVE CHATBOT HARNESS      ")
     print("=" * 60)
     print("[Diagnostics] Connecting to LM Studio server...")
 
@@ -64,7 +105,7 @@ def run_cli():
     if consent != "yes":
         print("Consent not provided. Exiting.")
         sys.exit(0)
-    print("Type 'exit' or 'quit' to end the session.\n")
+    print("Type /help for commands, or /exit to end the session.\n")
 
     client = LMStudioClient(model_name, spinner_factory=Spinner)
     harness = DynamicChatHarness(client)
@@ -73,12 +114,15 @@ def run_cli():
             user_input = input("\nYou: ").strip()
             if not user_input:
                 continue
-            if user_input.lower() in {"exit", "quit"}:
-                print("\nGoodbye!")
-                break
+            if handle_command(user_input, harness):
+                continue
 
             bot_reply = harness.send_chat_message(user_input)
-            print(f"\n[Engine Stats: MBTI={harness.current_mbti} | Interests={harness.interests}]")
+            profile = harness.profile_snapshot()
+            print(
+                f"\n[Engine Stats: Style={profile['style_code']} | "
+                f"Interests={profile['interests']} | Ads={'on' if profile['sponsored_suggestions_enabled'] else 'off'}]"
+            )
             print(f"Chatbot: {bot_reply}")
         except KeyboardInterrupt:
             print("\nGoodbye!")

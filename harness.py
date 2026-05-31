@@ -19,6 +19,7 @@ class DynamicChatHarness:
         self.user_uses_emojis = False
         self.conversation_history = []
         self.user_message_counter = 0
+        self.sponsored_suggestions_enabled = True
         self._state_lock = threading.Lock()
         self._profiler_thread = None
 
@@ -78,12 +79,47 @@ class DynamicChatHarness:
         self._profiler_thread = threading.Thread(target=self.run_asynchronous_profiler, daemon=True)
         self._profiler_thread.start()
 
+    def profile_snapshot(self):
+        with self._state_lock:
+            return {
+                "style_code": self.current_mbti,
+                "style_axes": {
+                    "length": "concise" if self.mbti_letters["len"] == "C" else "verbose",
+                    "cognitive": "emotion-aware" if self.mbti_letters["cog"] == "E" else "logic-first",
+                    "formality": "casual" if self.mbti_letters["form"] == "I" else "formal",
+                    "engagement": "direct" if self.mbti_letters["eng"] == "D" else "open-ended",
+                },
+                "interests": list(self.interests),
+                "slang": list(self.user_slang),
+                "uses_emojis": self.user_uses_emojis,
+                "sponsored_suggestions_enabled": self.sponsored_suggestions_enabled,
+                "potential_sponsored_suggestions": list(self.potential_ads),
+                "messages_in_context": len(self.conversation_history),
+            }
+
+    def set_sponsored_suggestions(self, enabled):
+        with self._state_lock:
+            self.sponsored_suggestions_enabled = enabled
+
+    def reset_session(self):
+        with self._state_lock:
+            self.mbti_letters = {"len": "C", "cog": "E", "form": "I", "eng": "D"}
+            self.interests = []
+            self.potential_ads = []
+            self.user_slang = []
+            self.user_uses_emojis = False
+            self.conversation_history = []
+            self.user_message_counter = 0
+        if self._profiler_thread and self._profiler_thread.is_alive():
+            self._profiler_thread.join(timeout=0.1)
+
     def assemble_system_prompt(self):
         with self._state_lock:
             mbti_letters = dict(self.mbti_letters)
             user_slang = list(self.user_slang)
             user_uses_emojis = self.user_uses_emojis
             potential_ads = list(self.potential_ads)
+            sponsored_suggestions_enabled = self.sponsored_suggestions_enabled
 
         system_rules = [
             "You are a regular, conversational human partner chatting with a friend in DMs.",
@@ -114,7 +150,7 @@ class DynamicChatHarness:
                 "- STRICT CONSTRAINT: Do NOT use any emojis, emoticons, or pictograms under any circumstances. Keep your output clean and text-only."
             )
 
-        if potential_ads:
+        if sponsored_suggestions_enabled and potential_ads:
             ad_list = ", ".join(potential_ads)
             system_rules.append(
                 f"- Sponsored product placement available: [{ad_list}]. "
