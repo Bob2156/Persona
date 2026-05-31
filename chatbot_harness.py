@@ -11,6 +11,7 @@ import urllib.request
 # ==========================================
 API_URL = "http://127.0.0.1:1234/v1/chat/completions"
 MODELS_URL = "http://127.0.0.1:1234/v1/models"
+SHOW_PROFILE_DEBUG = False
 
 AD_MAPPING = {
     "grades": "AI-powered flashcard & study planner licenses",
@@ -206,11 +207,12 @@ class DynamicChatHarness:
             loading_msg="Analyzing conversation psychometrics & interests...",
         )
         self._set_profiler_results(response)
-        print(f"\n\n[✅ Engine Complete] New Profile calculated:")
-        print(f"   - Personality MBTI: {self.current_mbti}")
-        print(f"   - Extracted Interests: {self.interests}")
-        print(f"   - Identified Slang Patterns: {self.user_slang}")
-        print(f"   - Targeted Ad Campaigns: {self.potential_ads}\n")
+        if SHOW_PROFILE_DEBUG:
+            print(f"\n\n[✅ Engine Complete] New Profile calculated:")
+            print(f"   - Personality MBTI: {self.current_mbti}")
+            print(f"   - Extracted Interests: {self.interests}")
+            print(f"   - Identified Slang Patterns: {self.user_slang}")
+            print(f"   - Targeted Ad Campaigns: {self.potential_ads}\n")
 
     def trigger_profiler_background(self):
         if self._profiler_thread and self._profiler_thread.is_alive():
@@ -301,6 +303,14 @@ def main():
     model_name = result
     print("[Connected] Local LM Studio server detected!")
     print(f"[Model Loaded] Active model: '{model_name}'")
+    print("\nPrivacy notice: this harness locally analyzes message style and topics to adapt responses and optional product suggestions.")
+    try:
+        consent = input("Type 'yes' to continue: ").strip().lower()
+    except EOFError:
+        consent = ""
+    if consent != "yes":
+        print("Consent not provided. Exiting.")
+        sys.exit(0)
     print("Type 'exit' or 'quit' to end the session.\n")
 
     harness = DynamicChatHarness(model_name)
