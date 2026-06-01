@@ -1,6 +1,6 @@
 # Persona
 
-Adaptive ad-inserting chatbot harness for local LM Studio models.
+Adaptive chatbot harness for local LM Studio models.
 
 ## Run
 
