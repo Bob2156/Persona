@@ -4,6 +4,13 @@ API_URL = "http://127.0.0.1:1234/v1/chat/completions"
 MODELS_URL = "http://127.0.0.1:1234/v1/models"
 SHOW_PROFILE_DEBUG = False
 
+# -- Profiling engine tuning --
+SMOOTHING_WINDOW = 5            # number of recent observations to consider per axis
+CONFIDENCE_THRESHOLD = 3        # min observations before an axis is considered "confident"
+MAX_INTERESTS = 10              # cap on accumulated interest tags
+PROFILER_INTERVAL = 3           # run deep profiler every N user messages
+PROFILE_SAVE_PATH = "persona_profile.json"  # default save location
+
 AD_MAPPING = {
     "grades": "AI-powered flashcard & study planner licenses",
     "school": "AI-powered flashcard & study planner licenses",
